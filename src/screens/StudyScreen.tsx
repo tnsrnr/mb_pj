@@ -364,7 +364,7 @@ export const StudyScreen: React.FC = () => {
           </Text>
           <Ionicons
             name="chevron-forward"
-            size={18}
+            size={14}
             color={isCompleted ? '#999' : '#2196F3'}
           />
         </TouchableOpacity>

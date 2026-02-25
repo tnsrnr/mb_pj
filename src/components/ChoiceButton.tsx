@@ -55,13 +55,13 @@ export const ChoiceButton: React.FC<ChoiceButtonProps> = ({
 
 const styles = StyleSheet.create({
   button: {
-    padding: 10,
-    marginVertical: 5,
-    borderRadius: 6,
-    borderWidth: 2,
+    padding: 4,
+    marginVertical: 2,
+    borderRadius: 4,
+    borderWidth: 1,
     borderColor: '#E0E0E0',
     backgroundColor: '#fff',
-    minHeight: 44,
+    minHeight: 28,
     justifyContent: 'center',
     alignItems: 'center',
   },
@@ -72,7 +72,7 @@ const styles = StyleSheet.create({
     borderColor: '#F44336',
   },
   buttonText: {
-    fontSize: 14,
+    fontSize: 7,
     color: '#333',
     textAlign: 'center',
   },

@@ -141,7 +141,7 @@ export const SettingsScreen: React.FC = () => {
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>중요도</Text>
         <View style={styles.optionsContainer}>
-          {(['대', '중', '소'] as string[]).map((importance) => (
+          {(['상', '중', '하'] as string[]).map((importance) => (
             <TouchableOpacity
               key={importance}
               style={[

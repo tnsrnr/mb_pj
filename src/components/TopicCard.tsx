@@ -1,11 +1,114 @@
 import React, { useMemo } from 'react';
-import { View, Text, StyleSheet, ScrollView } from 'react-native';
-import { ScrollView as GHScrollView } from 'react-native-gesture-handler';
+import { View, Text, StyleSheet, useWindowDimensions } from 'react-native';
+import { ScrollView as GHScrollView, NativeViewGestureHandler } from 'react-native-gesture-handler';
+import WebView from 'react-native-webview';
 import { TopicData, StudyPattern } from '../types';
 import { ChoiceButton } from './ChoiceButton';
 import { useStudyStore } from '../store/studyStore';
 
 const VIEWTABLE_SCROLL_WIDTH = 10000;
+
+/** 추가정보만 웹처럼 표시: WebView로 HTML 렌더링 (표·스타일 동일), 높이 콘텐츠에 맞춤 */
+const ADDITIONAL_INFO_WEBVIEW_MIN_HEIGHT = 120;
+
+const INJECT_HEIGHT_SCRIPT = `
+  (function sendSize() {
+    var wrap = document.querySelector('.wrap');
+    var h = wrap ? wrap.scrollHeight : Math.max(document.body.scrollHeight, document.documentElement.scrollHeight);
+    var w = wrap ? wrap.scrollWidth : Math.max(document.body.scrollWidth, document.documentElement.scrollWidth);
+    if (window.ReactNativeWebView) {
+      window.ReactNativeWebView.postMessage(JSON.stringify({
+        type: 'size',
+        height: Math.ceil(h) + 12,
+        width: Math.ceil(w)
+      }));
+    }
+  })();
+  sendSize();
+  setTimeout(sendSize, 200);
+  true;
+`;
+
+function buildAdditionalInfoHtml(html: string, viewportWidth: number): string {
+  return `<!DOCTYPE html><html><head><meta name="viewport" content="width=${viewportWidth}, initial-scale=1, maximum-scale=1, user-scalable=no"><meta charset="utf-8"><style>
+*{box-sizing:border-box}
+body{margin:0;padding:4px;font-size:6px;line-height:1.4;color:#333;background:transparent;direction:ltr;text-align:left}
+.wrap{overflow-x:auto;-webkit-overflow-scrolling:touch;min-height:1px;direction:ltr}
+.wrap table,.wrap th,.wrap td,.wrap p,.wrap li,.wrap div,.wrap span{font-size:6px !important;line-height:1.4 !important}
+.wrap table{margin:2px 0 !important;border-collapse:collapse;width:auto !important;max-width:100% !important;table-layout:auto !important}
+.wrap th,.wrap td{border:1px solid #b5b5b5 !important;padding:3px 4px !important}
+.wrap th{background:#253546 !important;color:#fff !important}
+.wrap tr:nth-child(even) td{background:#f5f5f5 !important}
+.wrap ul,.wrap ol{margin:2px 0 !important;padding-left:10px !important}
+.wrap li{margin:1px 0 !important}
+.wrap p{margin:2px 0 !important}
+</style></head><body><div class="wrap">${html}</div></body></html>`;
+}
+
+const AdditionalInfoWebView: React.FC<{ html: string; simultaneousHandlers?: any }> = ({
+  html,
+  simultaneousHandlers,
+}) => {
+  const { width } = useWindowDimensions();
+  const [contentHeight, setContentHeight] = React.useState(ADDITIONAL_INFO_WEBVIEW_MIN_HEIGHT);
+  const [contentWidth, setContentWidth] = React.useState<number | null>(null);
+  React.useEffect(() => {
+    setContentHeight(ADDITIONAL_INFO_WEBVIEW_MIN_HEIGHT);
+    setContentWidth(null);
+  }, [html]);
+  const viewportWidth = Math.max(320, width - 48);
+  const source = useMemo(
+    () => ({ html: buildAdditionalInfoHtml(html, viewportWidth) }),
+    [html, viewportWidth]
+  );
+
+  const onMessage = React.useCallback((event: { nativeEvent: { data: string } }) => {
+    try {
+      const data = JSON.parse(event.nativeEvent.data);
+      // Backward compat (older injected script)
+      if (data?.type === 'height' && typeof data.height === 'number' && data.height > 0) {
+        setContentHeight(Math.max(ADDITIONAL_INFO_WEBVIEW_MIN_HEIGHT, data.height));
+        return;
+      }
+
+      if (data?.type === 'size') {
+        if (typeof data.height === 'number' && data.height > 0) {
+          setContentHeight(Math.max(ADDITIONAL_INFO_WEBVIEW_MIN_HEIGHT, data.height));
+        }
+        if (typeof data.width === 'number' && data.width > 0) {
+          setContentWidth(data.width);
+        }
+      }
+    } catch (_) {}
+  }, []);
+
+  const webViewWidth = Math.max(viewportWidth, contentWidth ?? viewportWidth);
+
+  return (
+    <GHScrollView
+      horizontal
+      showsHorizontalScrollIndicator
+      nestedScrollEnabled
+      simultaneousHandlers={simultaneousHandlers}
+      style={[styles.additionalInfoWebViewWrap, { height: contentHeight }]}
+      contentContainerStyle={{ width: webViewWidth, height: contentHeight }}
+    >
+      <NativeViewGestureHandler simultaneousHandlers={simultaneousHandlers} disallowInterruption={false}>
+        <View style={{ width: webViewWidth, height: contentHeight }} pointerEvents="none">
+          <WebView
+            source={source}
+            originWhitelist={['*']}
+            scrollEnabled={false}
+            nestedScrollEnabled={true}
+            style={[styles.additionalInfoWebView, { width: webViewWidth, height: contentHeight }]}
+            injectedJavaScript={INJECT_HEIGHT_SCRIPT}
+            onMessage={onMessage}
+          />
+        </View>
+      </NativeViewGestureHandler>
+    </GHScrollView>
+  );
+};
 
 interface TopicCardProps {
   topic: TopicData;
@@ -21,6 +124,7 @@ export const TopicCard: React.FC<TopicCardProps> = ({
   onAnswerSelected,
 }) => {
   const { topics } = useStudyStore();
+  const scrollRef = React.useRef<any>(null);
   const [selectedChoice, setSelectedChoice] = React.useState<string | null>(null);
   const [showAnswer, setShowAnswer] = React.useState(false);
 
@@ -140,12 +244,14 @@ export const TopicCard: React.FC<TopicCardProps> = ({
   };
 
   return (
-    <ScrollView
+    <GHScrollView
+      ref={scrollRef}
       style={styles.container}
       contentContainerStyle={styles.contentContainer}
       showsVerticalScrollIndicator={true}
       bounces={true}
       removeClippedSubviews={false}
+      nestedScrollEnabled
     >
       <View style={styles.header}>
         <Text style={styles.categoryPath}>
@@ -190,7 +296,7 @@ export const TopicCard: React.FC<TopicCardProps> = ({
       {topic.additional_info && (
         <View style={styles.additionalInfoContainer}>
           <Text style={styles.additionalInfoLabel}>추가 정보:</Text>
-          <Text style={styles.additionalInfoText}>{topic.additional_info}</Text>
+          <AdditionalInfoWebView html={topic.additional_info} simultaneousHandlers={scrollRef} />
         </View>
       )}
 
@@ -210,7 +316,7 @@ export const TopicCard: React.FC<TopicCardProps> = ({
           </GHScrollView>
         </View>
       )}
-    </ScrollView>
+    </GHScrollView>
   );
 };
 
@@ -293,6 +399,15 @@ const styles = StyleSheet.create({
     fontSize: 10,
     color: '#333',
     lineHeight: 14,
+  },
+  additionalInfoWebViewWrap: {
+    width: '100%',
+    overflow: 'hidden',
+    borderRadius: 4,
+  },
+  additionalInfoWebView: {
+    backgroundColor: 'transparent',
+    width: '100%',
   },
   viewtableContainer: {
     marginTop: 6,

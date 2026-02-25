@@ -45,7 +45,7 @@ const initialState = {
   studyMode: DEFAULT_STUDY_MODE,
   studyPattern: DEFAULT_STUDY_PATTERN,
   selectedCategories: [],
-  selectedImportances: ['대', '중', '소'],
+  selectedImportances: ['상', '중', '하'],
   choiceCount: DEFAULT_CHOICE_COUNT,
   studiedTopics: [],
   filteredTopics: [],
