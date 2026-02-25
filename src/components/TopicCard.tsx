@@ -154,14 +154,24 @@ export const TopicCard: React.FC<TopicCardProps> = ({
         .slice(0, choiceCount - 1);
       
       const allChoices = [topic, ...otherTopics].sort(() => Math.random() - 0.5);
-      return allChoices.map((t) => t.topic);
+      return allChoices.map((t) => ({
+        topic: t.topic,
+        topics_eng: t.topics_eng,
+        topics_loc: t.topics_loc,
+      }));
     }
   }, [topic, topics, choiceCount, studyPattern]);
 
-  const handleChoicePress = (choice: string | { text: string; isCorrect: boolean }) => {
+  const handleChoicePress = (
+    choice:
+      | string
+      | { text: string; isCorrect: boolean }
+      | { topic: string; topics_eng?: string; topics_loc?: string }
+  ) => {
     if (showAnswer) return;
 
-    const choiceText = typeof choice === 'string' ? choice : choice.text;
+    const choiceText =
+      typeof choice === 'string' ? choice : 'text' in choice ? choice.text : choice.topic;
     setSelectedChoice(choiceText);
     setShowAnswer(true);
 
@@ -169,14 +179,21 @@ export const TopicCard: React.FC<TopicCardProps> = ({
     if (studyPattern === 'find_topic') {
       isCorrect = choiceText === topic.topic;
     } else if (studyPattern === 'select_definition') {
-      isCorrect = typeof choice === 'object' && choice.isCorrect;
+      isCorrect = typeof choice === 'object' && 'isCorrect' in choice && !!choice.isCorrect;
     }
 
-    setTimeout(() => {
-      onAnswerSelected(isCorrect);
-      setSelectedChoice(null);
-      setShowAnswer(false);
-    }, 1500);
+    if (isCorrect) {
+      setTimeout(() => {
+        onAnswerSelected(true);
+        setSelectedChoice(null);
+        setShowAnswer(false);
+      }, 300);
+    } else {
+      setTimeout(() => {
+        setSelectedChoice(null);
+        setShowAnswer(false);
+      }, 1500);
+    }
   };
 
   const renderQuestion = () => {
@@ -265,16 +282,23 @@ export const TopicCard: React.FC<TopicCardProps> = ({
       {studyPattern !== 'full' && (
         <View style={styles.choicesContainer}>
           {choices.map((choice, index) => {
-            const choiceText = typeof choice === 'string' ? choice : choice.text;
+            const choiceText =
+              typeof choice === 'string' ? choice : 'text' in choice ? choice.text : choice.topic;
+            const choiceSubtitle =
+              studyPattern === 'find_topic' && typeof choice === 'object' && !('text' in choice)
+                ? [choice.topics_eng, choice.topics_loc].filter(Boolean).join(' / ')
+                : undefined;
             const isCorrect =
               studyPattern === 'select_definition'
-                ? typeof choice === 'object' && choice.isCorrect
+                ? typeof choice === 'object' && 'isCorrect' in choice && !!choice.isCorrect
                 : choiceText === topic.topic;
 
             return (
               <ChoiceButton
                 key={index}
                 label={choiceText}
+                subtitle={choiceSubtitle}
+                variant={studyPattern === 'find_topic' ? 'topicChoice' : 'default'}
                 onPress={() => handleChoicePress(choice)}
                 isCorrect={isCorrect}
                 isSelected={selectedChoice === choiceText}

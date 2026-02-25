@@ -109,6 +109,15 @@ export const useStudyStore = create<StudyStore>()(
         const { topics, selectedCategories, selectedImportances, studyMode } = get();
         let filtered = [...topics];
 
+        const normalizeImportance = (imp: string): string => {
+          if (!imp) return '';
+          const s = imp.trim();
+          if (s === '상' || s === '대' || s === 'high' || s === 'HIGH') return '상';
+          if (s === '중' || s === 'medium' || s === 'MEDIUM') return '중';
+          if (s === '하' || s === '소' || s === 'low' || s === 'LOW') return '하';
+          return s;
+        };
+
         // 카테고리 필터링
         if (selectedCategories.length > 0) {
           filtered = filtered.filter((topic) =>
@@ -116,10 +125,10 @@ export const useStudyStore = create<StudyStore>()(
           );
         }
 
-        // 중요도 필터링
+        // 중요도 필터링 (상/중/하 기준, API가 대/중/소 등이어도 정규화하여 매칭)
         if (selectedImportances.length > 0) {
           filtered = filtered.filter((topic) =>
-            selectedImportances.includes(topic.importance)
+            selectedImportances.includes(normalizeImportance(topic.importance))
           );
         }
 
